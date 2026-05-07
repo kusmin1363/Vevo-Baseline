@@ -8,10 +8,10 @@ export PYTHONIOENCODING=UTF-8
  
 ######## Set Experiment Configuration ###########
 exp_config="$exp_dir/fvq32.json"
-exp_name="fvq32"
+exp_name="fvq32_new"
 
 ####### Train Model ###########
-CUDA_VISIBLE_DEVICES="0" accelerate launch --main_process_port 14556 --mixed_precision="bf16" \
+CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}" accelerate launch --main_process_port 14556 --mixed_precision="bf16" \
     "${work_dir}"/bins/codec/train.py \
     --config=$exp_config \
     --exp_name=$exp_name \

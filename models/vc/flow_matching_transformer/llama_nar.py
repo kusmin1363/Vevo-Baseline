@@ -103,7 +103,14 @@ class OldLlamaAttention(nn.Module):
         )
 
         # TODO (joao): remove in v4.46 (RoPE is computed in the model, not in the decoder layers)
-        self.rotary_emb = LlamaRotaryEmbedding(config=self.config)
+        # self.rotary_emb = LlamaRotaryEmbedding(config=self.config)
+        # Transformer Error
+        self.rotary_emb = LlamaRotaryEmbedding(
+            self.config.hidden_size // self.config.num_attention_heads, # dim
+            max_position_embeddings=getattr(self.config, "max_position_embeddings", 2048), # max_position_embeddings
+            base=getattr(self.config, "rope_theta", 10000.0), # base
+            scaling_factor=getattr(self.config, "scaling_factor", 1.0) # scaling_factor (필요시)
+        )
 
     def forward(
         self,

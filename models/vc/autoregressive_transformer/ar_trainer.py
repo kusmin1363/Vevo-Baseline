@@ -20,6 +20,7 @@ from models.codec.vevo.vevo_repcodec import VevoRepCodec
 from models.vc.base.vc_emilia_dataset import VCEmiliaDataset, VCCollator
 
 import safetensors
+from torch.utils.data import IterableDataset, DataLoader
 
 
 class AutoregressiveTransformerTrainer(BaseTrainer):
@@ -259,6 +260,29 @@ class AutoregressiveTransformerTrainer(BaseTrainer):
 
     def _build_dataset(self):
         return VCEmiliaDataset, VCCollator
+
+
+    def _build_dataloader(self):
+        Dataset, Collator = self._build_dataset()
+        train_dataset = Dataset(self.cfg)
+        train_collate = Collator(self.cfg)
+        valid_dataset = Dataset(self.cfg)
+        valid_collate = Collator(self.cfg)
+
+        #train_dataset = self._build_dataset()(self.cfg, is_valid=False)
+        if isinstance(train_dataset, IterableDataset):
+            train_loader = DataLoader(
+                train_dataset,
+                batch_size=self.cfg.train.batch_size,
+                num_workers=self.cfg.train.dataloader.num_worker,
+                collate_fn=self._build_collate_fn()(self.cfg),
+                pin_memory=True,
+            )
+            # valid도 동일하게
+            return train_loader, valid_loader
+        # else: 원래 base_trainer 로직
+        return super()._build_dataloader()
+
 
     def _train_step(self, batch):
         train_losses = {}

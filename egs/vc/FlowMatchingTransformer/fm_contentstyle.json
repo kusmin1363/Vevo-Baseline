@@ -45,13 +45,13 @@
             "vocos_dim": 384,
             "vocos_intermediate_dim": 2048,
             "vocos_num_layers": 12,
-            "pretrained_path": "[Please fill out your pretrained model path]/model.safetensors"
+            "pretrained_path": "/scratch/x3397a09/Amphion/vevo_tokenizer/vq8192/tokenizer/vq8192/model.safetensors"
         }
     },
     "log_dir": "ckpts/vevo",
     "train": {
         "max_epoch": 0,
-        "use_dynamic_batchsize": true,
+        "use_dynamic_batchsize": false,  //dynamic batch 끄기
         "max_tokens": 10000,
         "max_sentences": 50,
         "lr_warmup_steps": 32000,

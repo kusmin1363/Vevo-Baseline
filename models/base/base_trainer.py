@@ -451,18 +451,29 @@ class BaseTrainer:
         else:
             print("Use Normal Batchsize......")
             Dataset, Collator = self._build_dataset()
+            # if (
+            #     hasattr(self.cfg.train, "use_emilia_dataset")
+            #     and self.cfg.train.use_emilia_dataset
+            # ):
+            #     train_dataset = Dataset(cfg=self.cfg)
             if (
-                hasattr(self.cfg.train, "use_emilia_dataset")
+                hasattr(self.cfg.train, "use_emilia_dataset") 
                 and self.cfg.train.use_emilia_dataset
             ):
-                train_dataset = Dataset(cfg=self.cfg)
+                #Amphion/models/base/emilia_dataset.py
+                from models.base.emilia_dataset import build_emilia_webdataset 
+                train_dataset = build_emilia_webdataset(self.cfg)
+                print("Using Emilia WebDataset (No Extraction!).")
             else:
                 train_dataset = Dataset(self.cfg, self.cfg.dataset[0], is_valid=False)
             train_collate = Collator(self.cfg)
 
+            from torch.utils.data import IterableDataset
+            is_iterable = isinstance(train_dataset, IterableDataset)
+
             train_loader = DataLoader(
                 train_dataset,
-                shuffle=True,
+                shuffle=not is_iterable,               
                 collate_fn=train_collate,
                 batch_size=self.cfg.train.batch_size,
                 num_workers=self.cfg.train.dataloader.num_worker,

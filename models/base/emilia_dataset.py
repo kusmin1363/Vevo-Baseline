@@ -33,9 +33,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-MNT_PATH = "[Please fill out your emilia data root path]"
-CACHE_PATH = "[Please fill out your emilia cache path]"
-
+MNT_PATH = "/scratch/x3397a09/emilia_data_root/Emilia"
+CACHE_PATH = "/scratch/x3397a09/emilia_cache"
 
 class EmiliaDataset(torch.utils.data.Dataset):
     def __init__(
@@ -56,7 +55,7 @@ class EmiliaDataset(torch.utils.data.Dataset):
         self.wav_paths = []
         self.mnt_path = MNT_PATH
 
-        self.language_list = ["zh", "en"]  # Data language list
+        self.language_list = ["en"] #["zh", "en"]  Data language list
         self.wav_path_index2duration = []
         self.wav_path_index2phonelen = []
         self.index2num_frames = []
@@ -312,3 +311,137 @@ class EmiliaDataset(torch.utils.data.Dataset):
             random_index = np.random.choice(self.num_frame_indices[:position])
             del position
             return self.__getitem__(random_index)
+
+### Adding Webdataset Form
+import io
+import librosa
+import numpy as np
+import webdataset as wds
+import logging
+import glob
+import tempfile
+import json
+import traceback
+import torch
+
+logger = logging.getLogger(__name__)
+
+MAX_DEBUG_LOGS = 1
+
+def build_emilia_webdataset(cfg):
+    # 1. Loading tar files using pattern
+    en_tars = sorted(glob.glob("/scratch/x3397a09/emilia_data_root/Emilia/EN/*.tar"))
+    
+    emilia_ratio = cfg.dataset["emilia"]
+    if emilia_ratio < 1.0:
+        num_tars = max(1, int(len(en_tars) * emilia_ratio))
+        logger.info(f"Using {num_tars}/{len(en_tars)} tar shards (ratio={emilia_ratio})")
+        en_tars = en_tars[:num_tars]
+    
+    tar_pattern = en_tars
+    
+    # debug counter를 closure로 관리 (global 안 씀)
+    debug_state = {"count": 0}
+
+    def process_sample(sample):
+        is_debug = debug_state["count"] < MAX_DEBUG_LOGS
+        key = sample.get("__key__", "UNKNOWN")
+        
+        if is_debug:
+            logger.debug(f"[Input] key={key}, available keys={list(sample.keys())}")
+            for k in ["mp3", "wav", "flac"]:
+                if k in sample:
+                    logger.debug(f"[Input] {k} bytes: {len(sample[k])}")
+            if "json" in sample:
+                logger.debug(f"[Input] json bytes: {len(sample['json'])}")
+
+        # 오디오 포맷 감지
+        ext, audio_bytes = None, None
+        for fmt in ["mp3", "wav", "flac"]:
+            if fmt in sample:
+                ext, audio_bytes = fmt, sample[fmt]
+                break
+        
+        if ext is None:
+            if is_debug:
+                logger.debug(f"[Filter] {key}: no audio found, skipping")
+            return None
+
+        try:
+            # 1. 오디오 처리
+            with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=True) as temp_file:
+                temp_file.write(audio_bytes)
+                temp_file.flush()
+                speech, sr = librosa.load(temp_file.name, sr=int(cfg.preprocess.sample_rate))
+            
+            orig_len = len(speech)
+            
+            if len(speech) > 30 * cfg.preprocess.sample_rate:
+                if is_debug:
+                    logger.debug(f"[Filter] {key}: audio too long ({orig_len} samples), skipping")
+                return None
+                
+            hop_size = cfg.preprocess.hop_size
+            pad_len = hop_size - len(speech) % hop_size
+            speech = np.pad(speech, (0, pad_len), mode="constant")
+            speech_frames = len(speech) // hop_size
+            mask = np.ones(speech_frames)
+
+            rep_sr = getattr(cfg.model, "representation_sample_rate", 16000)
+
+            # 2. .json 메타데이터 파싱
+            meta = {}
+            if "json" in sample:
+                meta = json.loads(sample["json"].decode("utf-8"))
+            
+            result = {
+                "wav": speech,
+                "speech": speech,
+                "mask": mask,
+                f"wav_{rep_sr}": speech,
+                f"wav_{rep_sr}_len": orig_len,
+            }
+            
+            if is_debug:
+                logger.debug(
+                    f"[Done] {key}: speech={speech.shape}, mask={mask.shape}, "
+                    f"meta_keys={list(meta.keys())}"
+                )
+            
+            return result
+
+        except Exception as e:
+            logger.error(f"[Error] key={key}: {e}")
+            logger.error(traceback.format_exc())
+            return None
+
+    def debug_final_output(processed_sample):
+        if debug_state["count"] < MAX_DEBUG_LOGS:
+            shape_info = {
+                k: (f"{type(v).__name__}, shape={v.shape}" if isinstance(v, np.ndarray)
+                    else type(v).__name__)
+                for k, v in processed_sample.items()
+            }
+            logger.debug(f"[Final output] {shape_info}")
+            debug_state["count"] += 1
+        return processed_sample
+
+    # WebDataset Pipeline
+    dataset = (
+        wds.WebDataset(tar_pattern, resampled=True)
+        .shuffle(2000)
+        .map(process_sample)
+        .select(lambda x: x is not None)
+        .map(debug_final_output)
+        .with_epoch(64000)
+    )
+
+    class CleanDataset(torch.utils.data.IterableDataset):
+        def __init__(self, wds_dataset):
+            self.wds_dataset = wds_dataset
+
+        def __iter__(self):
+            for sample in self.wds_dataset:
+                yield {k: v for k, v in sample.items() if not k.startswith("__")}
+
+    return CleanDataset(dataset)

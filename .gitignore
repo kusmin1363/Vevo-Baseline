@@ -48,9 +48,12 @@ ckpts
 *.ckpt
 *.wav
 *.flac
+*.bin
 pretrained/wenet/*conformer_exp
 pretrained/bigvgan/args.json
 !egs/tts/VALLE/prompt_examples/*.wav
+vevo_ARtransformer
+vevo_tokenizer
 
 # Runtime data dirs
 processed_data
@@ -63,4 +66,5 @@ result
 conversion_results
 get_available_gpu.py
 
-*.safetensors
+*.safetensorsckpts/
+__pycache__/

@@ -16,6 +16,7 @@ def vevo_timbre(content_wav_path, reference_wav_path, output_path):
         flow_matching_steps=32,
     )
     save_audio(gen_audio, output_path=output_path)
+    print(output_path)
 
 
 if __name__ == "__main__":

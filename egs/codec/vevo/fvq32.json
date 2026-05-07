@@ -1,7 +1,7 @@
 {
     "model_type": "VQVAE",
     "dataset": {
-        "emilia": 1, // 101k hours, 34m samples
+        "emilia": 0.003, //기존 1에서 100hour만 사용하기 위해 0.003으로  // 101k hours, 34m samples
         // "emilia": 0.001, // debug
     },
     "preprocess": {
@@ -29,7 +29,7 @@
     },
     "log_dir": "ckpts/vevo",
     "train": {
-        "max_epoch": 0,
+        "max_epoch": 50,
         "use_dynamic_batchsize": false,
         "max_tokens": 16000000,
         "max_sentences": 200,

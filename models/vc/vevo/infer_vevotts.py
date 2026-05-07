@@ -33,6 +33,7 @@ def vevo_tts(
 
     assert output_path is not None
     save_audio(gen_audio, output_path=output_path)
+    print(output_path)
 
 
 if __name__ == "__main__":

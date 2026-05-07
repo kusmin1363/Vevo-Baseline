@@ -17,6 +17,7 @@ def vevo_style(content_wav_path, style_wav_path, output_path):
         timbre_ref_wav_path=content_wav_path,
     )
     save_audio(gen_audio, output_path=output_path)
+    print(output_path)
 
 
 if __name__ == "__main__":
